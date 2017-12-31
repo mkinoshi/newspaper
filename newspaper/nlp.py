@@ -12,9 +12,11 @@ import math
 from os import path
 
 from collections import Counter
-
+from rake_nltk import Rake
 from . import settings
-
+import nltk
+# from nltk.corpus import stopwords
+# s=set(stopwords.words('english'))
 ideal = 20.0
 
 stopwords = set()
@@ -43,7 +45,7 @@ def summarize(url='', title='', text='', max_sents=5):
 
     summaries = []
     sentences = split_sentences(text)
-    keys = keywords(text)
+    keys = keywords(text, url)
     titleWords = split_words(title)
 
     # Score sentences, and use the top 5 or max_sents sentences
@@ -116,36 +118,46 @@ def split_words(text):
         return None
 
 
-def keywords(text):
+def keywords(text, url, titleSig = False):
     """Get the top 10 keywords and their frequency scores ignores blacklisted
     words in stopwords, counts the number of occurrences of each word, and
     sorts them in reverse natural order (so descending) by number of
     occurrences.
     """
-    NUM_KEYWORDS = 10
+    NUM_KEYWORDS = 20
     text = split_words(text)
+    # tokens = nltk.word_tokenize(' '.join(text))
+    # tagged = nltk.pos_tag(tokens)
     # of words before removing blacklist words
+    innerStopwords = list(stopwords)[:]
     if text:
         num_words = len(text)
-        text = [x for x in text if x not in stopwords]
+        # validText = [item[0] for item in tagged if item[1].find('NN') != -1 || item[1] == 'JJ']
+        if url.find('nytimes') != -1:
+            innerStopwords += ['new', 'york']
+        text = [x for x in text if x not in set(innerStopwords)]
         freq = {}
         for word in text:
             if word in freq:
                 freq[word] += 1
             else:
                 freq[word] = 1
-
         min_size = min(NUM_KEYWORDS, len(freq))
         keywords = sorted(freq.items(),
-                          key=lambda x: (x[1], x[0]),
-                          reverse=True)
+                        key=lambda x: (x[1], x[0]),
+                        reverse=True)
         keywords = keywords[:min_size]
-        keywords = dict((x, y) for x, y in keywords)
-
+        keywords = dict((x, y) for x, y in keywords if not x.isdigit())
         for k in keywords:
             articleScore = keywords[k] * 1.0 / max(num_words, 1)
             keywords[k] = articleScore * 1.5 + 1
         return dict(keywords)
+        # else:
+        #     r = Rake()
+        #     print (' '.join(text))
+        #     r.extract_keywords_from_text(' '.join(text))
+        #     print ('from content')
+        #     print (r.get_ranked_phrases())
     else:
         return dict()
 

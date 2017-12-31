@@ -8,7 +8,7 @@ import logging
 import copy
 import os
 import glob
-
+import operator
 import requests
 
 from . import images
@@ -343,10 +343,26 @@ class Article(object):
         self.throw_if_not_parsed_verbose()
         
         nlp.load_stopwords(self.config.get_language())
-        text_keyws = list(nlp.keywords(self.text).keys())
-        title_keyws = list(nlp.keywords(self.title).keys())
-        keyws = list(set(title_keyws + text_keyws))
-        self.set_keywords(keyws)
+        text_keyws = nlp.keywords(self.text, self.url)
+        title_keyws = nlp.keywords(self.title, self.url)
+        keyws = {}
+        count = 0
+        for word in list(title_keyws.keys()):
+            if word in text_keyws:
+                keyws[word] = 1.5
+            else:
+                keyws[word] = 1.15
+            count += 1
+        tcount = 0
+        end = len(text_keyws.keys())
+        while tcount < end:
+            #  find the word with the largest weight amoung the rest
+            word = max(text_keyws, key=lambda i: text_keyws[i])
+            if word not in keyws:
+                keyws[word] = text_keyws[word]
+            del text_keyws[word]
+            tcount += 1
+        self.set_keywords(sorted(keyws.items(), key=lambda item: item[1], reverse=True))
 
         max_sents = self.config.MAX_SUMMARY_SENT
 
@@ -462,7 +478,7 @@ class Article(object):
         """Keys are stored in list format
         """
         if not isinstance(keywords, list):
-            raise Exception("Keyword input must be list!")
+            raise Exception("Keyword input must be dictionary!")
         if keywords:
             self.keywords = keywords[:self.config.MAX_KEYWORDS]
 
